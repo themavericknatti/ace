@@ -476,14 +476,14 @@ HTML;
 
         $cacheFile = $this->cacheDir . '/' . md5($filePath) . '.php';
 
-        $shouldCompile = !file_exists($cacheFile);
+        $shouldCompile = !file_exists($cacheFile) || filesize($cacheFile) === 0;
 
         // Check file modification times in ALL environments (dev and production)
         // so that template edits and deployments recompile immediately without stale delays
         if (!$shouldCompile) {
             clearstatcache(true, $filePath);
             clearstatcache(true, $cacheFile);
-            $shouldCompile = filemtime($filePath) > filemtime($cacheFile);
+            $shouldCompile = filemtime($filePath) >= filemtime($cacheFile);
         }
 
         if ($shouldCompile) {
