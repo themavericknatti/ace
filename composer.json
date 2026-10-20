@@ -1,0 +1,63 @@
+{
+    "name": "ace/core",
+    "description": "The core engine and library for the Ace PHP MVC Framework.",
+    "keywords": [
+        "ace",
+        "framework",
+        "core",
+        "mvc",
+        "php",
+        "active-record",
+        "orm",
+        "queue",
+        "templates",
+        "idempotency",
+        "payments"
+    ],
+    "type": "library",
+    "license": "MIT",
+    "homepage": "https://github.com/themavericknatti/ace-core",
+    "support": {
+        "issues": "https://github.com/themavericknatti/ace-core/issues",
+        "source": "https://github.com/themavericknatti/ace-core"
+    },
+    "authors": [
+        {
+            "name": "Celionatti",
+            "email": "celionattidev@gmail.com",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": ">=8.2",
+        "ext-pdo": "*",
+        "ext-curl": "*",
+        "ext-json": "*",
+        "phpmailer/phpmailer": "^6.9 || ^7.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Ace\\": "src/"
+        },
+        "files": [
+            "src/helpers.php"
+        ]
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "vendor/bin/phpunit"
+    },
+    "config": {
+        "sort-packages": true,
+        "optimize-autoloader": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

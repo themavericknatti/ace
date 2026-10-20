@@ -1,0 +1,31 @@
+# Application & Boilerplate Folders (User application layer, not part of ace/core library)
+/app/
+/config/
+/migrations/
+/public/
+/routes/
+/seeds/
+/storage/
+/views/
+/scratch/
+
+# Application Scripts & Local Hosting Config
+/ace
+/.env*
+/.htaccess
+/how-to-upload.md
+
+# Composer Dependencies (Libraries should not commit composer.lock)
+/vendor/
+composer.lock
+
+# Test & Build Caches
+.phpunit.result.cache
+
+# IDE & Editor Settings
+.idea/
+.vscode/
+
+# Operating System Files
+.DS_Store
+Thumbs.db
