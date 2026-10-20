@@ -1,5 +1,5 @@
 {
-    "name": "ace/core",
+    "name": "acephp/core",
     "description": "The core engine and library for the Ace PHP MVC Framework.",
     "keywords": [
         "ace",
