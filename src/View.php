@@ -466,6 +466,93 @@ HTML;
     }
 
     /**
+     * Render Vite client & asset tags for modern frontend compilation (HMR + Production Manifest).
+     *
+     * @param string|array ...$entrypoints Entrypoint paths (e.g. 'resources/css/app.css', 'resources/js/app.js')
+     */
+    public static function renderVite(...$entrypoints): string
+    {
+        $flattened = [];
+        foreach ($entrypoints as $entry) {
+            if (is_array($entry)) {
+                foreach ($entry as $sub) {
+                    $flattened[] = (string)$sub;
+                }
+            } else {
+                $flattened[] = (string)$entry;
+            }
+        }
+
+        $rootDir = Application::$ROOT_DIR ?? (dirname(__DIR__, 2));
+        $publicDir = $rootDir . '/public';
+        $hotFile = $publicDir . '/hot';
+
+        // 1. Hot Module Reloading (Vite Dev Server)
+        if (file_exists($hotFile)) {
+            $viteDevUrl = rtrim(trim((string)@file_get_contents($hotFile)), '/');
+            if (empty($viteDevUrl)) {
+                $viteDevUrl = 'http://localhost:5173';
+            }
+
+            $tags = ["<script type=\"module\" src=\"{$viteDevUrl}/@vite/client\"></script>"];
+            foreach ($flattened as $entry) {
+                $entryClean = ltrim($entry, '/');
+                if (preg_match('/\.(css|scss|sass|less|styl)$/i', $entryClean)) {
+                    $tags[] = "<link rel=\"stylesheet\" href=\"{$viteDevUrl}/{$entryClean}\">";
+                } else {
+                    $tags[] = "<script type=\"module\" src=\"{$viteDevUrl}/{$entryClean}\"></script>";
+                }
+            }
+            return implode("\n", $tags);
+        }
+
+        // 2. Production Build Manifest
+        $manifestPath = $publicDir . '/build/manifest.json';
+        if (!file_exists($manifestPath)) {
+            $manifestPath = $publicDir . '/build/.vite/manifest.json';
+        }
+
+        if (file_exists($manifestPath)) {
+            $manifest = json_decode((string)file_get_contents($manifestPath), true) ?: [];
+            $tags = [];
+            foreach ($flattened as $entry) {
+                $entryClean = ltrim($entry, '/');
+                if (isset($manifest[$entryClean])) {
+                    $chunk = $manifest[$entryClean];
+                    $file = $chunk['file'] ?? '';
+                    if ($file) {
+                        if (preg_match('/\.(css|scss)$/i', $file)) {
+                            $tags[] = "<link rel=\"stylesheet\" href=\"/build/{$file}\">";
+                        } else {
+                            $tags[] = "<script type=\"module\" src=\"/build/{$file}\"></script>";
+                        }
+                    }
+                    if (!empty($chunk['css'])) {
+                        foreach ($chunk['css'] as $cssFile) {
+                            $tags[] = "<link rel=\"stylesheet\" href=\"/build/{$cssFile}\">";
+                        }
+                    }
+                }
+            }
+            if (!empty($tags)) {
+                return implode("\n", array_unique($tags));
+            }
+        }
+
+        // 3. Fallback to direct script and link tags
+        $tags = [];
+        foreach ($flattened as $entry) {
+            $entryClean = '/' . ltrim($entry, '/');
+            if (preg_match('/\.(css|scss)$/i', $entry)) {
+                $tags[] = "<link rel=\"stylesheet\" href=\"{$entryClean}\">";
+            } else {
+                $tags[] = "<script type=\"module\" src=\"{$entryClean}\"></script>";
+            }
+        }
+        return implode("\n", $tags);
+    }
+
+    /**
      * Compile template file if modified, returning path to cached compiled script
      */
     private function compile(string $filePath): string
@@ -611,6 +698,13 @@ HTML;
         // 9b. Compiling CSRF tag
         $content = str_replace('@csrf', '<?php echo csrf_field(); ?>', $content);
 
+        // 9b1. HTML boolean attribute directives (@checked, @selected, @disabled, @readonly, @required)
+        $content = preg_replace('/@checked\(((?:[^()]|\((?:[^()]|\([^()]*\))*\))*)\)/', "<?php if($1): echo 'checked'; endif; ?>", $content);
+        $content = preg_replace('/@selected\(((?:[^()]|\((?:[^()]|\([^()]*\))*\))*)\)/', "<?php if($1): echo 'selected'; endif; ?>", $content);
+        $content = preg_replace('/@disabled\(((?:[^()]|\((?:[^()]|\([^()]*\))*\))*)\)/', "<?php if($1): echo 'disabled'; endif; ?>", $content);
+        $content = preg_replace('/@readonly\(((?:[^()]|\((?:[^()]|\([^()]*\))*\))*)\)/', "<?php if($1): echo 'readonly'; endif; ?>", $content);
+        $content = preg_replace('/@required\(((?:[^()]|\((?:[^()]|\([^()]*\))*\))*)\)/', "<?php if($1): echo 'required'; endif; ?>", $content);
+
         // 9b2. Compiling Method spoofing tag (@method('PUT'), @method('DELETE'), etc.)
         $content = preg_replace('/@method\(\s*(["\'])(.*?)\1\s*\)/', '<?php echo method_field(\'$2\'); ?>', $content);
 
@@ -667,6 +761,16 @@ HTML;
         $content = str_replace('@bootstrap', '<?php echo \Ace\View::renderBootstrap(); ?>', $content);
         $content = preg_replace('/@css\(\s*(["\'])(.*?)\1\s*\)/', '<?php echo \Ace\View::renderCssFramework(\'$2\'); ?>', $content);
         $content = str_replace('@css', '<?php echo \Ace\View::renderCssFramework(); ?>', $content);
+
+        // 9i2. Compiling Vite tag (@vite('resources/css/app.css', 'resources/js/app.js'))
+        $content = preg_replace_callback(
+            '/@vite\(((?:[^()]|\((?:[^()]|\([^()]*\))*\))*)\)/',
+            function ($matches) {
+                $args = trim($matches[1] ?? '');
+                return "<?php echo \\Ace\\View::renderVite({$args}); ?>";
+            },
+            $content
+        );
 
         // 9j. Compiling Multi-Template directives
         $content = str_replace('@activeTemplate', '<?php echo active_template(); ?>', $content);

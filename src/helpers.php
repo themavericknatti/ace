@@ -1815,3 +1815,45 @@ if (!function_exists('payment')) {
         return $manager;
     }
 }
+
+if (!function_exists('http')) {
+    /**
+     * Create a new fluent HTTP client request.
+     */
+    function http(): \Ace\Http
+    {
+        return \Ace\Http::new();
+    }
+}
+
+if (!function_exists('storage')) {
+    /**
+     * Access filesystem storage disk driver.
+     *
+     * @param string|null $disk Target disk name ('local', 'public', etc.)
+     */
+    function storage(?string $disk = null): \Ace\Storage\StorageDriverInterface
+    {
+        return \Ace\Storage::disk($disk);
+    }
+}
+
+if (!function_exists('vite')) {
+    /**
+     * Render modern Vite client & build asset tags.
+     */
+    function vite(...$entrypoints): string
+    {
+        return \Ace\View::renderVite(...$entrypoints);
+    }
+}
+
+if (!function_exists('db_transaction')) {
+    /**
+     * Execute a callback inside a database transaction with automatic commit/rollback.
+     */
+    function db_transaction(callable $callback): mixed
+    {
+        return \Ace\Database::run($callback);
+    }
+}

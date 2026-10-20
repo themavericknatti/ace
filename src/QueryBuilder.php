@@ -18,6 +18,9 @@ class QueryBuilder
     protected ?string $orderBy = null;
     protected ?int $limit = null;
     protected ?int $offset = null;
+    protected bool $withTrashed = false;
+    protected bool $onlyTrashed = false;
+    protected bool $forceDeleting = false;
 
     protected static array $allowedOperators = [
         '=', '!=', '<>', '<', '<=', '>', '>=', 'LIKE', 'NOT LIKE', 'ILIKE', 'IS', 'IS NOT'
@@ -236,6 +239,51 @@ class QueryBuilder
         $colRef = $this->wrapColumn($column);
         $this->orderBy = "{$colRef} {$direction}";
         return $this;
+    }
+
+    /**
+     * Include soft-deleted records in the query.
+     */
+    public function withTrashed(): self
+    {
+        $this->withTrashed = true;
+        return $this;
+    }
+
+    /**
+     * Return only soft-deleted records in the query.
+     */
+    public function onlyTrashed(): self
+    {
+        $this->onlyTrashed = true;
+        return $this;
+    }
+
+    /**
+     * Permanently delete matching records even if soft deletes are enabled.
+     */
+    public function forceDelete(): int
+    {
+        $this->forceDeleting = true;
+        return $this->delete();
+    }
+
+    /**
+     * Check if the target model has soft delete enabled.
+     */
+    protected function isModelSoftDelete(): bool
+    {
+        if (!class_exists($this->modelClass)) {
+            return false;
+        }
+        $ref = new \ReflectionClass($this->modelClass);
+        if ($ref->hasProperty('softDelete')) {
+            $prop = $ref->getProperty('softDelete');
+            $prop->setAccessible(true);
+            $instance = $ref->newInstanceWithoutConstructor();
+            return (bool)$prop->getValue($instance);
+        }
+        return false;
     }
 
     /**
@@ -465,6 +513,13 @@ class QueryBuilder
             return 0;
         }
 
+        if ($this->isModelSoftDelete() && !$this->forceDeleting) {
+            $deletedAtCol = defined("{$this->modelClass}::DELETED_AT")
+                ? constant("{$this->modelClass}::DELETED_AT")
+                : 'deleted_at';
+            return $this->update([$deletedAtCol => date('Y-m-d H:i:s')]);
+        }
+
         $sql = "DELETE FROM `{$this->table}`";
 
         $whereClause = $this->compileWheres();
@@ -506,9 +561,24 @@ class QueryBuilder
      */
     protected function compileWheres(): string
     {
+        $wheres = $this->wheres;
+
+        if ($this->isModelSoftDelete()) {
+            $deletedAtCol = defined("{$this->modelClass}::DELETED_AT")
+                ? constant("{$this->modelClass}::DELETED_AT")
+                : 'deleted_at';
+            $wrappedCol = "`{$this->table}`.`{$deletedAtCol}`";
+
+            if ($this->onlyTrashed) {
+                $wheres[] = "{$wrappedCol} IS NOT NULL";
+            } elseif (!$this->withTrashed) {
+                $wheres[] = "{$wrappedCol} IS NULL";
+            }
+        }
+
         $whereParts = [];
-        if (!empty($this->wheres)) {
-            $whereParts[] = '(' . implode(' AND ', $this->wheres) . ')';
+        if (!empty($wheres)) {
+            $whereParts[] = '(' . implode(' AND ', $wheres) . ')';
         }
         foreach ($this->orWheres as $orWhere) {
             $whereParts[] = $orWhere;

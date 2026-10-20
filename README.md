@@ -1,7 +1,7 @@
-# ⚡ Ace Core Framework (`ace/core`)
+# ⚡ Ace Core Framework (`acex/core`)
 
-[![Latest Stable Version](https://img.shields.io/packagist/v/ace/core.svg?style=flat-square)](https://packagist.org/packages/ace/core)
-[![Total Downloads](https://img.shields.io/packagist/dt/ace/core.svg?style=flat-square)](https://packagist.org/packages/ace/core)
+[![Latest Stable Version](https://img.shields.io/packagist/v/acex/core.svg?style=flat-square)](https://packagist.org/packages/acex/core)
+[![Total Downloads](https://img.shields.io/packagist/dt/acex/core.svg?style=flat-square)](https://packagist.org/packages/acex/core)
 [![PHP Version](https://img.shields.io/badge/php-%3E%3D%208.2-blue.svg?style=flat-square)](https://php.net)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](LICENSE)
 
@@ -9,9 +9,11 @@
 
 - 🚀 **Zero Heavy Bloat**: Ultra-fast execution with minimal memory footprint.
 - 🧩 **Robust IoC / Dependency Injection Container**: Auto-wiring, singleton binding, and service locator patterns.
-- 🗄️ **ActiveRecord ORM & Fluent Query Builder**: Clean database interaction with `hasOne`, `hasMany`, and `belongsTo` relationship support.
+- 🌐 **Fluent HTTP Client**: Zero-dependency wrapper for consuming REST APIs with retry, bearer tokens, and JSON dot-notation parsing.
+- 🗂️ **Unified Storage & Disks**: Driver-based filesystem abstraction (`local`, `public`, extensible to S3/R2).
+- 🗄️ **ActiveRecord ORM with Soft Deletes & Nested Transactions**: Fluent queries, `withTrashed()`, `onlyTrashed()`, and savepoint-aware transactions.
 - 🛡️ **Defensive Security & Validation**: Strict request validation via `FormRequest`, XSS sanitization, CSRF protection, and API key management.
-- 🎨 **Multi-Template Presentation Layer**: Blade-like template syntax, inheritance, layout engines, and view compilation caching.
+- 🎨 **Multi-Template Presentation Layer**: Blade-like template engine with `@vite`, `@checked`, `@selected`, `@disabled`, layout inheritance, and view compilation caching.
 - 📦 **Background Job Queue**: File/Database-backed worker queues for asynchronous background task execution.
 - 💳 **Unified Payments Engine**: Driver-based payment gateway integration (Paystack, Stripe, Flutterwave).
 - 🔁 **API Idempotency Manager**: Mutation deduplication and duplicate-request protection for modern API backends.
@@ -20,10 +22,10 @@
 
 ## 📦 Installation
 
-Install `ace/core` via [Composer](https://getcomposer.org/):
+Install `acex/core` via [Composer](https://getcomposer.org/):
 
 ```bash
-composer require ace/core
+composer require acex/core
 ```
 
 ---
@@ -46,10 +48,11 @@ Ace Core organizes framework responsibilities into decoupled, reusable modules u
 | :--- | :--- | :--- |
 | **Kernel & Container** | `Ace\Application`, `Ace\Container` | Application bootstrap lifecycle and dependency injection. |
 | **HTTP & Routing** | `Ace\Router`, `Ace\Route`, `Ace\Request`, `Ace\Response` | RESTful routing, route groups, URL parameters, and HTTP responses. |
-| **Middlewares** | `Ace\Middleware`, `Ace\Middlewares\*` | HTTP pipeline interception, CORS negotiation, and maintenance mode. |
-| **Database & ORM** | `Ace\Database`, `Ace\Model`, `Ace\QueryBuilder`, `Ace\Relations\*` | PDO abstraction, ActiveRecord records, relationship resolution, and fluent queries. |
+| **HTTP Client** | `Ace\Http`, `Ace\HttpResponse` | Fluent REST client for consuming external web services and APIs. |
+| **Storage & Disks** | `Ace\Storage`, `Ace\Storage\LocalStorageDriver` | Driver-based filesystem abstraction with public/local disks and URLs. |
+| **Database & ORM** | `Ace\Database`, `Ace\Model`, `Ace\QueryBuilder`, `Ace\Relations\*` | PDO abstraction, Soft Deletes, savepoint transactions, and relationships. |
 | **Validation** | `Ace\Validator`, `Ace\FormRequest` | Strict input validation rules, custom error messages, and payload sanitization. |
-| **Presentation** | `Ace\View`, `Ace\ViewData`, `Ace\TemplateManager` | Template compilation, directives, sections, components, and layout inheritance. |
+| **Presentation** | `Ace\View`, `Ace\ViewData`, `Ace\TemplateManager` | Template compilation, `@vite`, boolean form directives, components, and layouts. |
 | **Queue & Worker** | `Ace\Queue`, `Ace\QueueWorker`, `Ace\Job` | Asynchronous task queues, worker daemon processing, and failure handling. |
 | **Payments** | `Ace\Payment`, `Ace\Payments\*` | Unified payment driver abstraction for multiple gateways. |
 | **Security & Auth** | `Ace\Guard`, `Ace\ApiKey`, `Ace\Hash`, `Ace\Session`, `Ace\XssSanitizer` | Session handling, bcrypt hashing, API authentication, and input sanitization. |
@@ -57,87 +60,125 @@ Ace Core organizes framework responsibilities into decoupled, reusable modules u
 
 ---
 
-## 💡 Quick Start Example
+## 💡 Quick Start Examples
 
-### 1. Booting the Application Kernel
+### 1. Fluent HTTP Client (`Ace\Http`)
 
-```php
-use Ace\Application;
-
-$rootDir = dirname(__DIR__);
-$config = [
-    'app' => [
-        'name' => 'My Ace App',
-        'env' => 'development',
-        'debug' => true,
-    ],
-    'db' => [
-        'driver' => 'mysql',
-        'host' => '127.0.0.1',
-        'database' => 'ace_db',
-        'username' => 'root',
-        'password' => '',
-    ],
-];
-
-$app = new Application($rootDir, $config);
-```
-
-### 2. Registering Routes
+Consume third-party REST APIs cleanly without curl boilerplate:
 
 ```php
-use Ace\Router;
-use Ace\Request;
-use Ace\Response;
+use Ace\Http;
 
-$router = $app->router;
+// GET with query parameters
+$response = Http::get('https://api.github.com/users/octocat');
 
-$router->get('/', function (Request $request, Response $response) {
-    return $response->json([
-        'status' => 'success',
-        'message' => 'Powered by Ace Core Framework v' . Application::VERSION,
+// POST with Bearer token, JSON payload, and automatic retries
+$response = Http::withToken('secret-api-token')
+    ->timeout(10)
+    ->retry(3, sleepMs: 100)
+    ->post('https://api.example.com/orders', [
+        'item_id' => 42,
+        'quantity' => 2,
     ]);
-});
 
-$router->get('/users/{id}', function (Request $request, Response $response) {
-    $userId = $request->param('id');
-    return $response->json(['user_id' => $userId]);
-});
+if ($response->successful()) {
+    $orderId = $response->json('data.order.id');
+}
 ```
 
-### 3. ActiveRecord Model & Queries
+Global helper: `http()->withToken(...)->get(...)`.
+
+---
+
+### 2. Unified Filesystem Storage (`Ace\Storage`)
+
+Store, retrieve, and generate URLs for files effortlessly:
+
+```php
+use Ace\Storage;
+
+// Store on default local disk (storage/app)
+Storage::put('reports/monthly.pdf', $pdfBinary);
+$exists = Storage::exists('reports/monthly.pdf');
+$content = Storage::get('reports/monthly.pdf');
+
+// Store on public disk (storage/app/public) with accessible URL
+Storage::disk('public')->put('avatars/user_1.png', $imageBinary);
+$url = Storage::disk('public')->url('avatars/user_1.png'); // Returns: /storage/avatars/user_1.png
+```
+
+Global helper: `storage('public')->put(...)`.
+
+---
+
+### 3. Soft Deletes & Database Transactions
 
 ```php
 use Ace\Model;
+use Ace\Database;
 
-class User extends Model
+class Article extends Model
 {
-    protected static string $table = 'users';
-    protected static string $primaryKey = 'id';
+    protected static string $table = 'articles';
+    protected bool $softDelete = true; // Enables soft delete support
 }
 
-// Fluent querying
-$activeUsers = User::query()
-    ->where('status', '=', 'active')
-    ->orderBy('created_at', 'DESC')
-    ->limit(10)
-    ->get();
+// 1. Soft delete and restoration
+$article = Article::find(1);
+$article->delete();                  // Sets deleted_at = now()
+$article->trashed();                 // Returns true
+$article->restore();                 // Restores deleted_at = null
+
+// 2. Querying soft deleted records
+$activeOnly  = Article::all();                    // Automatically excludes soft-deleted
+$withDeleted = Article::withTrashed()->get();      // Includes soft-deleted
+$onlyDeleted = Article::onlyTrashed()->get();      // Returns ONLY soft-deleted
+
+// 3. Savepoint-Aware Database Transactions
+Database::run(function () {
+    $user = User::create(['name' => 'John']);
+    Profile::create(['user_id' => $user->id, 'bio' => 'Hello']);
+});
+// or via global helper:
+db_transaction(fn() => ...);
+```
+
+---
+
+### 4. Modern Vite & Template Directives
+
+In your Blade templates (`views/**/*.php`):
+
+```html
+<head>
+    <!-- Automatic Vite HMR in development & production manifest loading -->
+    @vite('resources/css/app.css', 'resources/js/app.js')
+</head>
+<body>
+    <form method="POST" action="/profile">
+        @csrf
+
+        <!-- Clean boolean attribute directives -->
+        <input type="checkbox" name="notifications" @checked($user->wants_notifications)>
+        
+        <select name="role">
+            <option value="user" @selected($user->role === 'user')>User</option>
+            <option value="admin" @selected($user->role === 'admin')>Admin</option>
+        </select>
+
+        <button type="submit" @disabled($user->is_suspended)>Save</button>
+    </form>
+</body>
 ```
 
 ---
 
 ## 🧪 Testing
 
-Ace Core includes a full PHPUnit test suite covering the core modules:
+Ace Core includes a comprehensive PHPUnit test suite:
 
 ```bash
 composer test
-```
-
-or directly:
-
-```bash
-php vendor/bin/phpunit
 ```
 
 ---

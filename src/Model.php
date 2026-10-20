@@ -107,6 +107,22 @@ abstract class Model implements \ArrayAccess, \IteratorAggregate, \JsonSerializa
         return new QueryBuilder(static::class);
     }
 
+    /**
+     * Start a query builder including soft-deleted records.
+     */
+    public static function withTrashed(): QueryBuilder
+    {
+        return static::query()->withTrashed();
+    }
+
+    /**
+     * Start a query builder only returning soft-deleted records.
+     */
+    public static function onlyTrashed(): QueryBuilder
+    {
+        return static::query()->onlyTrashed();
+    }
+
     abstract public static function tableName(): string;
     abstract public function primaryKey(): string;
     abstract public function rules(): array;
@@ -1200,6 +1216,22 @@ abstract class Model implements \ArrayAccess, \IteratorAggregate, \JsonSerializa
     public function isTrashed(): bool
     {
         return !empty($this->{static::DELETED_AT});
+    }
+
+    /**
+     * Alias for isTrashed().
+     */
+    public function trashed(): bool
+    {
+        return $this->isTrashed();
+    }
+
+    /**
+     * Check if soft delete is enabled on this model.
+     */
+    public function isSoftDeleteEnabled(): bool
+    {
+        return $this->softDelete;
     }
 
     // =========================================================================

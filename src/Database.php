@@ -8,6 +8,7 @@ use Exception;
 class Database
 {
     public PDO $pdo;
+    protected int $transactionLevel = 0;
 
     public function __construct(array $config)
     {
@@ -88,7 +89,12 @@ class Database
      */
     public function beginTransaction(): bool
     {
-        return $this->pdo->beginTransaction();
+        $this->transactionLevel++;
+        if ($this->transactionLevel === 1) {
+            return $this->pdo->beginTransaction();
+        }
+        $this->pdo->exec("SAVEPOINT trans_{$this->transactionLevel}");
+        return true;
     }
 
     /**
@@ -96,7 +102,16 @@ class Database
      */
     public function commit(): bool
     {
-        return $this->pdo->commit();
+        if ($this->transactionLevel <= 0) {
+            return false;
+        }
+        $level = $this->transactionLevel;
+        $this->transactionLevel--;
+        if ($level === 1) {
+            return $this->pdo->commit();
+        }
+        $this->pdo->exec("RELEASE SAVEPOINT trans_{$level}");
+        return true;
     }
 
     /**
@@ -104,7 +119,36 @@ class Database
      */
     public function rollback(): bool
     {
-        return $this->pdo->rollBack();
+        if ($this->transactionLevel <= 0) {
+            return false;
+        }
+        $level = $this->transactionLevel;
+        $this->transactionLevel--;
+        if ($level === 1) {
+            return $this->pdo->rollBack();
+        }
+        $this->pdo->exec("ROLLBACK TO SAVEPOINT trans_{$level}");
+        return true;
+    }
+
+    /**
+     * Get the active transaction nesting level.
+     */
+    public function getTransactionLevel(): int
+    {
+        return $this->transactionLevel;
+    }
+
+    /**
+     * Execute a callback in a transaction statically using current application db connection.
+     */
+    public static function run(callable $callback): mixed
+    {
+        $db = Application::$app->db ?? null;
+        if (!$db) {
+            throw new Exception("Database connection not established.");
+        }
+        return $db->transaction($callback);
     }
 
     /**
