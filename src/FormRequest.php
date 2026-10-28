@@ -63,6 +63,15 @@ abstract class FormRequest implements ArrayAccess
     }
 
     /**
+     * Get the data to be validated.
+     * Override this to merge additional sources (e.g. route params).
+     */
+    public function validationData(): array
+    {
+        return $this->request->getBody();
+    }
+
+    /**
      * Execute authorization and validation.
      * If validation fails:
      * - AJAX/JSON: responds with 422 JSON
@@ -78,7 +87,7 @@ abstract class FormRequest implements ArrayAccess
         }
 
         // 2. Run validator
-        $data = $this->request->getBody();
+        $data = $this->validationData();
         $this->validator = Validator::make(
             $data,
             $this->rules(),
@@ -96,13 +105,27 @@ abstract class FormRequest implements ArrayAccess
 
     /**
      * Get validated data. Runs validate() if not yet executed.
+     * Optionally retrieve a single validated key.
      */
-    public function validated(): array
+    public function validated(?string $key = null, mixed $default = null): mixed
     {
         if (empty($this->validatedData) && $this->validator === null) {
-            return $this->validate();
+            $this->validate();
         }
+
+        if ($key !== null) {
+            return $this->validatedData[$key] ?? $default;
+        }
+
         return $this->validatedData;
+    }
+
+    /**
+     * Alias for validated() — returns only the safe/validated data.
+     */
+    public function safe(?string $key = null, mixed $default = null): mixed
+    {
+        return $this->validated($key, $default);
     }
 
     /**
@@ -162,6 +185,8 @@ abstract class FormRequest implements ArrayAccess
         return $this->request;
     }
 
+    // ─── Request Proxy Methods ─────────────────────────────────
+
     /**
      * Get an input value from the request.
      */
@@ -169,6 +194,96 @@ abstract class FormRequest implements ArrayAccess
     {
         return $this->request->get($key, $default);
     }
+
+    /**
+     * Alias for get() — retrieve an input value from the request.
+     */
+    public function input(string $key, mixed $default = null): mixed
+    {
+        return $this->request->get($key, $default);
+    }
+
+    /**
+     * Get all input data from the request.
+     */
+    public function all(): array
+    {
+        return $this->request->getBody();
+    }
+
+    /**
+     * Get a subset of input data.
+     */
+    public function only(string|array ...$keys): array
+    {
+        return $this->request->only(...$keys);
+    }
+
+    /**
+     * Get all input except the specified keys.
+     */
+    public function except(string|array ...$keys): array
+    {
+        return $this->request->except(...$keys);
+    }
+
+    /**
+     * Check if an input key exists on the request.
+     */
+    public function has(string $key): bool
+    {
+        return $this->request->has($key);
+    }
+
+    /**
+     * Get the HTTP method.
+     */
+    public function method(): string
+    {
+        return $this->request->method();
+    }
+
+    /**
+     * Check if the request is AJAX / expects JSON.
+     */
+    public function isAjax(): bool
+    {
+        return $this->request->isAjax();
+    }
+
+    /**
+     * Get a request header.
+     */
+    public function header(string $name, mixed $default = null): mixed
+    {
+        return $this->request->header($name, $default);
+    }
+
+    /**
+     * Get the request IP address.
+     */
+    public function ip(): string
+    {
+        return $this->request->ip();
+    }
+
+    /**
+     * Get the request URL path.
+     */
+    public function getPath(): string
+    {
+        return $this->request->getPath();
+    }
+
+    /**
+     * Get the bearer token from the Authorization header.
+     */
+    public function bearerToken(): ?string
+    {
+        return $this->request->bearerToken();
+    }
+
+    // ─── ArrayAccess Implementation ────────────────────────────
 
     /**
      * ArrayAccess implementation.

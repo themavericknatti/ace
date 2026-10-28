@@ -3,6 +3,9 @@
 namespace Ace;
 
 use Exception;
+use ReflectionFunction;
+use ReflectionMethod;
+use ReflectionNamedType;
 
 class Router
 {
@@ -300,6 +303,47 @@ class Router
     }
 
     /**
+     * Resolve the first parameter of a callable or controller method.
+     * If the first parameter type-hints a FormRequest subclass, instantiate it,
+     * run authorization + validation, and return it. Otherwise return the raw Request.
+     *
+     * @param \ReflectionParameter[] $reflectionParams
+     * @return Request|FormRequest
+     */
+    protected function resolveRequestParameter(array $reflectionParams): Request|FormRequest
+    {
+        if (empty($reflectionParams)) {
+            return $this->request;
+        }
+
+        $firstParam = $reflectionParams[0];
+        $type = $firstParam->getType();
+
+        if (!$type instanceof ReflectionNamedType || $type->isBuiltin()) {
+            return $this->request;
+        }
+
+        $typeName = $type->getName();
+
+        // If type-hinted as base Request, pass it directly
+        if ($typeName === Request::class || $typeName === 'Ace\\Request') {
+            return $this->request;
+        }
+
+        // If type-hinted as a FormRequest subclass, instantiate, validate, and return it
+        if (class_exists($typeName) && is_subclass_of($typeName, FormRequest::class)) {
+            /** @var FormRequest $formRequest */
+            $formRequest = new $typeName($this->request);
+            // Auto-validate: runs authorize() + rules() and handles failure automatically
+            $formRequest->validated();
+            return $formRequest;
+        }
+
+        // For any other type hint (e.g. a service), fall back to the raw Request
+        return $this->request;
+    }
+
+    /**
      * Execute route callback (Closure, String View, or Controller Action)
      */
     protected function executeCallback($callback, array $params = []): mixed
@@ -323,8 +367,12 @@ class Router
                 $middleware->execute($action);
             }
 
-            // Call action
-            $result = call_user_func_array([$controller, $action], array_merge([$this->request], $params));
+            // Reflect the action method to resolve FormRequest type-hints
+            $reflection = new ReflectionMethod($controller, $action);
+            $requestArg = $this->resolveRequestParameter($reflection->getParameters());
+
+            // Call action with the resolved request (FormRequest or base Request)
+            $result = call_user_func_array([$controller, $action], array_merge([$requestArg], $params));
 
             if ($result instanceof JsonResource) {
                 return $result->toResponse($this->request);
@@ -334,7 +382,11 @@ class Router
         }
 
         if (is_callable($callback)) {
-            $result = call_user_func_array($callback, array_merge([$this->request], $params));
+            // Reflect the closure to resolve FormRequest type-hints
+            $reflection = new ReflectionFunction($callback);
+            $requestArg = $this->resolveRequestParameter($reflection->getParameters());
+
+            $result = call_user_func_array($callback, array_merge([$requestArg], $params));
 
             if ($result instanceof JsonResource) {
                 return $result->toResponse($this->request);
@@ -354,4 +406,3 @@ class Router
         return Application::$app->view->render($view, $params);
     }
 }
-
