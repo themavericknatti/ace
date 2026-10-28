@@ -31,6 +31,9 @@ abstract class Relation implements IteratorAggregate, Countable, ArrayAccess, Js
         $this->parent = $parent;
         $this->relatedClass = $relatedClass;
         $this->query = $relatedClass::query();
+        if (method_exists($parent, 'getConnection') && $parent->getConnection() !== null) {
+            $this->query->onConnection($parent->getConnection());
+        }
         $this->addConstraints();
     }
 

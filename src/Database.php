@@ -9,9 +9,40 @@ class Database
 {
     public PDO $pdo;
     protected int $transactionLevel = 0;
+    protected static array $connections = [];
 
     public function __construct(array $config)
     {
+        $driver = strtolower($config['driver'] ?? 'mysql');
+
+        // SQLite support
+        if ($driver === 'sqlite') {
+            $dbPath = $config['database'] ?? ':memory:';
+            $dsn = "sqlite:{$dbPath}";
+            $this->pdo = new PDO($dsn, null, null, [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            ]);
+            return;
+        }
+
+        // PostgreSQL support
+        if ($driver === 'pgsql' || $driver === 'postgres' || $driver === 'postgresql') {
+            $host = $config['host'] ?? '127.0.0.1';
+            $port = $config['port'] ?? '5432';
+            $dbName = $config['database'] ?? '';
+            $username = $config['username'] ?? 'postgres';
+            $password = $config['password'] ?? '';
+            $dsn = "pgsql:host={$host};port={$port};dbname={$dbName}";
+            $this->pdo = new PDO($dsn, $username, $password, [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES => false,
+            ]);
+            return;
+        }
+
+        // MySQL / MariaDB support
         $host = $config['host'] ?? '127.0.0.1';
         $port = $config['port'] ?? '3306';
         $dbName = $config['database'] ?? '';
@@ -142,11 +173,68 @@ class Database
     /**
      * Execute a callback in a transaction statically using current application db connection.
      */
-    public static function run(callable $callback): mixed
+    /**
+     * Register or attach a named database connection partition.
+     */
+    public static function addConnection(string $name, array|Database $configOrInstance): void
     {
-        $db = Application::$app->db ?? null;
+        if ($configOrInstance instanceof Database) {
+            static::$connections[$name] = $configOrInstance;
+        } else {
+            static::$connections[$name] = new Database($configOrInstance);
+        }
+    }
+
+    /**
+     * Retrieve a named database connection partition, or default if null.
+     */
+    public static function connection(?string $name = null): ?Database
+    {
+        if ($name === null || $name === 'default') {
+            return Application::$app->db ?? (static::$connections['default'] ?? null);
+        }
+
+        if (isset(static::$connections[$name])) {
+            return static::$connections[$name];
+        }
+
+        if (isset(Application::$app) && isset(Application::$app->config['db']['connections'][$name])) {
+            static::$connections[$name] = new Database(Application::$app->config['db']['connections'][$name]);
+            return static::$connections[$name];
+        }
+
+        return null;
+    }
+
+    /**
+     * Check if a named database connection is registered.
+     */
+    public static function hasConnection(string $name): bool
+    {
+        return isset(static::$connections[$name]) ||
+            (isset(Application::$app) && isset(Application::$app->config['db']['connections'][$name]));
+    }
+
+    /**
+     * Disconnect and clear one or all cached database connections.
+     */
+    public static function disconnect(?string $name = null): void
+    {
+        if ($name === null) {
+            static::$connections = [];
+        } else {
+            unset(static::$connections[$name]);
+        }
+    }
+
+    /**
+     * Execute a callback in a transaction statically using current application db connection or named connection partition.
+     */
+    public static function run(callable $callback, ?string $connection = null): mixed
+    {
+        $db = static::connection($connection);
         if (!$db) {
-            throw new Exception("Database connection not established.");
+            throw new Exception("Database connection '{$connection}' not established.");
         }
         return $db->transaction($callback);
     }

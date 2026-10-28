@@ -149,7 +149,51 @@ db_transaction(fn() => ...);
 
 ---
 
-### 4. Modern Vite & Template Directives
+### 4. Database Partitioning, Multi-Connection & Legacy Schema Migration
+
+Ace provides dynamic multi-database routing, sharded/partitioned table targeting, and full legacy schema support:
+
+```php
+use Ace\Database;
+use Ace\Model;
+
+// 1. Dynamic Multi-Connection / Database Sharding
+Database::addConnection('tenant_uk', [
+    'driver' => 'mysql',
+    'host' => '127.0.0.1',
+    'database' => 'tenant_uk_db',
+    'username' => 'root',
+    'password' => '',
+]);
+
+// Route model queries to another database connection dynamically:
+$orders = Order::onConnection('tenant_uk')->where('status', 'paid')->get();
+
+// 2. Table Partitioning (Time-based or Regional Sharding)
+// Dynamically targets table 'orders_2026_q1':
+$q1Orders = Order::partition('2026_q1')->where('amount', '>', 500)->get();
+
+// Or target arbitrary table names at runtime:
+$archive = Order::onTable('orders_archive')->get();
+
+// 3. Relationships Inherit Parent Connection Automatically
+$user = User::onConnection('tenant_uk')->find(1);
+// Automatically executes on 'tenant_uk' connection:
+$posts = $user->posts(); 
+
+// 4. Legacy Schema Adaptation (Custom keys & non-standard conventions)
+class LegacyMember extends Model
+{
+    protected static string $table = 'tbl_member_master';
+    protected static string $primaryKey = 'member_guid';
+    public static bool $incrementing = false; // String / UUID / Alphanumeric keys
+    public static bool $timestamps = false;   // Disable default created_at / updated_at
+}
+```
+
+---
+
+### 5. Modern Vite & Template Directives
 
 In your Blade templates (`views/**/*.php`):
 
@@ -177,7 +221,7 @@ In your Blade templates (`views/**/*.php`):
 
 ---
 
-### 5. Built-in Web Application Firewall (`Ace\Firewall`)
+### 6. Built-in Web Application Firewall (`Ace\Firewall`)
 
 Ace includes an out-of-the-box 8-layer security shield that inspects every request before it reaches routes or controllers:
 

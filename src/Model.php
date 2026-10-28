@@ -24,6 +24,16 @@ abstract class Model implements \ArrayAccess, \IteratorAggregate, \JsonSerializa
     protected array $attributes = [];
     public array $errors = [];
 
+    /**
+     * Named database connection partition for this model (null for default).
+     */
+    protected ?string $connection = null;
+
+    /**
+     * Dynamic table name or partition for this model instance (null to use static tableName()).
+     */
+    protected ?string $table = null;
+
     // =========================================================================
     // Guard Configuration — Override in child models
     // =========================================================================
@@ -105,7 +115,81 @@ abstract class Model implements \ArrayAccess, \IteratorAggregate, \JsonSerializa
      */
     public static function query(): QueryBuilder
     {
-        return new QueryBuilder(static::class);
+        $qb = new QueryBuilder(static::class);
+        $dummy = new static();
+        if ($dummy->connection !== null) {
+            $qb->onConnection($dummy->connection);
+        }
+        if ($dummy->table !== null) {
+            $qb->from($dummy->table);
+        }
+        return $qb;
+    }
+
+    /**
+     * Start a query on a specific database connection partition.
+     *
+     * Example:
+     *   User::onConnection('tenant_db')->where('active', 1)->get();
+     */
+    public static function onConnection(string $connection): QueryBuilder
+    {
+        return static::query()->onConnection($connection);
+    }
+
+    /**
+     * Start a query on a dynamically partitioned table.
+     *
+     * Example:
+     *   Log::partition('2026_q1')->where('level', 'error')->get();
+     */
+    public static function partition(string $partition): QueryBuilder
+    {
+        $base = static::tableName();
+        $targetTable = str_contains($partition, $base) ? $partition : "{$base}_{$partition}";
+        return static::query()->from($targetTable);
+    }
+
+    /**
+     * Start a query explicitly targeting a custom or legacy table name.
+     */
+    public static function onTable(string $table): QueryBuilder
+    {
+        return static::query()->from($table);
+    }
+
+    /**
+     * Get the database connection partition name for this model instance.
+     */
+    public function getConnection(): ?string
+    {
+        return $this->connection;
+    }
+
+    /**
+     * Set the database connection partition for this model instance.
+     */
+    public function setConnection(?string $connection): static
+    {
+        $this->connection = $connection;
+        return $this;
+    }
+
+    /**
+     * Get the resolved table name for this model instance.
+     */
+    public function getTable(): string
+    {
+        return $this->table ?? static::tableName();
+    }
+
+    /**
+     * Set the dynamic table name for this model instance.
+     */
+    public function setTable(string $table): static
+    {
+        $this->table = $table;
+        return $this;
     }
 
     /**
@@ -520,9 +604,9 @@ abstract class Model implements \ArrayAccess, \IteratorAggregate, \JsonSerializa
      */
     public function save(): bool
     {
-        $tableName = static::tableName();
+        $tableName = $this->getTable();
         $primaryKey = $this->primaryKey();
-        $db = Application::$app->db;
+        $db = Database::connection($this->connection);
 
         if (!$db) {
             return false;
@@ -1180,7 +1264,7 @@ abstract class Model implements \ArrayAccess, \IteratorAggregate, \JsonSerializa
      */
     public function forceDelete(): bool
     {
-        $tableName = static::tableName();
+        $tableName = $this->getTable();
         $primaryKey = $this->primaryKey();
         $pkValue = $this->{$primaryKey} ?? null;
 
@@ -1188,7 +1272,7 @@ abstract class Model implements \ArrayAccess, \IteratorAggregate, \JsonSerializa
             return false;
         }
 
-        $db = Application::$app->db;
+        $db = Database::connection($this->connection);
         if (!$db) {
             return false;
         }

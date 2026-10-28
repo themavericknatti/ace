@@ -21,6 +21,7 @@ class QueryBuilder
     protected bool $withTrashed = false;
     protected bool $onlyTrashed = false;
     protected bool $forceDeleting = false;
+    protected ?string $connection = null;
 
     protected static array $allowedOperators = [
         '=', '!=', '<>', '<', '<=', '>', '>=', 'LIKE', 'NOT LIKE', 'ILIKE', 'IS', 'IS NOT'
@@ -30,6 +31,59 @@ class QueryBuilder
     {
         $this->modelClass = $modelClass;
         $this->table = $modelClass::tableName();
+    }
+
+    /**
+     * Set the database connection partition for this query.
+     */
+    public function onConnection(?string $name): self
+    {
+        $this->connection = $name;
+        return $this;
+    }
+
+    /**
+     * Get the current database connection name.
+     */
+    public function getConnectionName(): ?string
+    {
+        return $this->connection;
+    }
+
+    /**
+     * Set target table or partition dynamically.
+     */
+    public function from(string $table): self
+    {
+        $this->table = $table;
+        return $this;
+    }
+
+    /**
+     * Set target partitioned table dynamically.
+     */
+    public function partition(string $partition): self
+    {
+        $base = $this->table;
+        $targetTable = str_contains($partition, $base) ? $partition : "{$base}_{$partition}";
+        $this->table = $targetTable;
+        return $this;
+    }
+
+    /**
+     * Get the target table name.
+     */
+    public function getTable(): string
+    {
+        return $this->table;
+    }
+
+    /**
+     * Resolve the Database instance for this query.
+     */
+    public function getDatabase(): ?Database
+    {
+        return Database::connection($this->connection);
     }
 
     /**
@@ -331,7 +385,7 @@ class QueryBuilder
      */
     public function get(): array
     {
-        $db = Application::$app->db ?? null;
+        $db = $this->getDatabase();
         if (!$db) {
             return [];
         }
@@ -347,6 +401,12 @@ class QueryBuilder
         $models = [];
         foreach ($records as $record) {
             $model = new $this->modelClass();
+            if ($this->connection !== null && method_exists($model, 'setConnection')) {
+                $model->setConnection($this->connection);
+            }
+            if (method_exists($model, 'setTable')) {
+                $model->setTable($this->table);
+            }
             $model->forceFill($record);
             $models[] = $model;
         }
@@ -439,7 +499,7 @@ class QueryBuilder
      */
     public function count(): int
     {
-        $db = Application::$app->db ?? null;
+        $db = $this->getDatabase();
         if (!$db) {
             return 0;
         }
@@ -472,7 +532,7 @@ class QueryBuilder
      */
     public function update(array $values): int
     {
-        $db = Application::$app->db ?? null;
+        $db = $this->getDatabase();
         if (!$db || empty($values)) {
             return 0;
         }
@@ -508,7 +568,7 @@ class QueryBuilder
      */
     public function delete(): int
     {
-        $db = Application::$app->db ?? null;
+        $db = $this->getDatabase();
         if (!$db) {
             return 0;
         }
