@@ -15,6 +15,7 @@ use Traversable;
  * Flexible data wrapper that permits both array access ($data['key'])
  * and object property access ($data->key) interchangeably for views.
  */
+#[\AllowDynamicProperties]
 class ViewData implements ArrayAccess, Countable, IteratorAggregate, JsonSerializable
 {
     protected array|object $data;

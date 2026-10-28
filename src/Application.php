@@ -279,6 +279,7 @@ class Application
             $this->isApiRequest = str_starts_with($path, '/api/') || $path === '/api';
 
             // Run global middlewares
+            (new \Ace\Middlewares\FirewallMiddleware())->execute('');
             (new \Ace\Middlewares\SecurityHeadersMiddleware())->execute('');
             (new \Ace\Middlewares\RateLimitMiddleware())->execute('');
 

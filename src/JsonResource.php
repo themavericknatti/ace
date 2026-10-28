@@ -7,6 +7,7 @@ namespace Ace;
  *
  * Inherit from this class and override `toArray($request)` to customize fields.
  */
+#[\AllowDynamicProperties]
 class JsonResource
 {
     /**

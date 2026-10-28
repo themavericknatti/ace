@@ -8,6 +8,9 @@
 **Ace Core** is the high-performance, lightweight engine and library powering the **Ace PHP MVC Framework**. Inspired by modern PHP architecture patterns (Laravel, Symfony), it delivers enterprise capabilities without framework bloat:
 
 - 🚀 **Zero Heavy Bloat**: Ultra-fast execution with minimal memory footprint.
+- 🛡️ **Next-Gen Web Application Firewall (WAF)**: Built-in 8-layer security shield protecting against SQLi, RCE, XSS, Path Traversal, and Scanners.
+- 🔒 **Airtight PHP2Shell Defense**: Complete mitigation for Windows CGI Argument Injection (CVE-2024-4577), soft-hyphen bypasses, and disguised web shell uploads.
+- ⚡ **Future-Proof PHP 8.2 to 8.5+ Ready**: 100% compliant with PHP 8.2, 8.3, 8.4, and 8.5+ without deprecation warnings.
 - 🧩 **Robust IoC / Dependency Injection Container**: Auto-wiring, singleton binding, and service locator patterns.
 - 🌐 **Fluent HTTP Client**: Zero-dependency wrapper for consuming REST APIs with retry, bearer tokens, and JSON dot-notation parsing.
 - 🗂️ **Unified Storage & Disks**: Driver-based filesystem abstraction (`local`, `public`, extensible to S3/R2).
@@ -55,7 +58,8 @@ Ace Core organizes framework responsibilities into decoupled, reusable modules u
 | **Presentation** | `Ace\View`, `Ace\ViewData`, `Ace\TemplateManager` | Template compilation, `@vite`, boolean form directives, components, and layouts. |
 | **Queue & Worker** | `Ace\Queue`, `Ace\QueueWorker`, `Ace\Job` | Asynchronous task queues, worker daemon processing, and failure handling. |
 | **Payments** | `Ace\Payment`, `Ace\Payments\*` | Unified payment driver abstraction for multiple gateways. |
-| **Security & Auth** | `Ace\Guard`, `Ace\ApiKey`, `Ace\Hash`, `Ace\Session`, `Ace\XssSanitizer` | Session handling, bcrypt hashing, API authentication, and input sanitization. |
+| **Security & Firewall** | `Ace\Firewall`, `Ace\Middlewares\FirewallMiddleware`, `Ace\Guard`, `Ace\XssSanitizer` | Built-in WAF, CVE-2024-4577 / PHP2Shell armor, IP auto-banning, input & XSS sanitization. |
+| **Auth & Sessions** | `Ace\ApiKey`, `Ace\Hash`, `Ace\Session` | Session handling, bcrypt hashing, and API authentication. |
 | **Utilities** | `Ace\Collection`, `Ace\Paginator`, `Ace\Logger`, `Ace\Mail` | Fluent collections, data pagination, logging, and transactional email. |
 
 ---
@@ -170,6 +174,33 @@ In your Blade templates (`views/**/*.php`):
     </form>
 </body>
 ```
+
+---
+
+### 5. Built-in Web Application Firewall (`Ace\Firewall`)
+
+Ace includes an out-of-the-box 8-layer security shield that inspects every request before it reaches routes or controllers:
+
+```php
+// Inspect request manually or configure rules
+use Ace\Firewall;
+
+Firewall::configure([
+    'enabled' => true,
+    'mode' => 'block',              // 'block' or 'monitor'
+    'auto_ban' => true,             // Auto-ban IPs that trigger >= 3 attacks
+    'max_threat_score' => 3,
+    'ban_duration' => 900,          // 15 minutes
+    'whitelist_ips' => ['127.0.0.1'],
+]);
+
+// Unban an IP:
+Firewall::unban('203.0.113.195');
+```
+
+- **CVE-2024-4577 Mitigation (PHP2Shell)**: Intercepts Windows CGI argument injections and `%ad` soft-hyphen tampering.
+- **Web Shell Upload Armor**: Blocks executable scripts (`.php*`, `.phtml`, `.phar`, `.htaccess`), double extensions, and scans file headers for embedded PHP code.
+- **SQLi & RCE Defense**: Automatically blocks `UNION SELECT`, time-based injections, chained bash/powershell commands, and reverse shell triggers.
 
 ---
 

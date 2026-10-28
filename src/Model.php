@@ -4,6 +4,7 @@ namespace Ace;
 
 use Ace\Exceptions\ModelNotFoundException;
 
+#[\AllowDynamicProperties]
 abstract class Model implements \ArrayAccess, \IteratorAggregate, \JsonSerializable
 {
     public const RULE_REQUIRED = 'required';
@@ -791,7 +792,7 @@ abstract class Model implements \ArrayAccess, \IteratorAggregate, \JsonSerializa
      *   Post::latest();               // ORDER BY id DESC
      *   Post::latest('created_at');    // ORDER BY created_at DESC
      */
-    public static function latest(string $column = null, int $limit = null): array
+    public static function latest(?string $column = null, ?int $limit = null): array
     {
         $model = new static();
         $col = $column ?? $model->primaryKey();
@@ -807,7 +808,7 @@ abstract class Model implements \ArrayAccess, \IteratorAggregate, \JsonSerializa
      *
      *   Post::oldest('created_at');
      */
-    public static function oldest(string $column = null, int $limit = null): array
+    public static function oldest(?string $column = null, ?int $limit = null): array
     {
         $model = new static();
         $col = $column ?? $model->primaryKey();
@@ -824,7 +825,7 @@ abstract class Model implements \ArrayAccess, \IteratorAggregate, \JsonSerializa
      *   $emails = User::pluck('email');                      // ['a@b.com', 'c@d.com']
      *   $map    = User::pluck('email', 'id');                // [1 => 'a@b.com', 2 => 'c@d.com']
      */
-    public static function pluck(string $column, string $keyColumn = null, array $where = []): array
+    public static function pluck(string $column, ?string $keyColumn = null, array $where = []): array
     {
         $records = static::find($where);
         $result = [];

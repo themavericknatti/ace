@@ -51,7 +51,18 @@ class UploadService
         // Place a protective .htaccess to block PHP execution in upload dirs
         $htaccess = $dir . '/.htaccess';
         if (!file_exists($htaccess)) {
-            @file_put_contents($htaccess, "# Prevent PHP execution in uploads\n<FilesMatch \"\\.(php|phtml|php3|php4|php5|php7|phps)$\">\n    Deny from all\n</FilesMatch>\n");
+            $protection = "# Ace Framework — Airtight Upload Directory Execution Protection\n" .
+                "<IfModule mod_php.c>\n    php_flag engine off\n</IfModule>\n" .
+                "<IfModule mod_php7.c>\n    php_flag engine off\n</IfModule>\n" .
+                "<IfModule mod_php8.c>\n    php_flag engine off\n</IfModule>\n" .
+                "RemoveHandler .php .phtml .php3 .php4 .php5 .php7 .php8 .phar .cgi .pl .py .sh\n" .
+                "SetHandler None\n" .
+                "<FilesMatch \"\\.(php|phtml|php[0-9]|phar|phps|pht|pgif|cgi|pl|sh|bash|exe|bat|cmd|htaccess|htpasswd|user\\.ini|env)$\">\n" .
+                "    <IfModule mod_authz_core.c>\n        Require all denied\n    </IfModule>\n" .
+                "    <IfModule !mod_authz_core.c>\n        Deny from all\n    </IfModule>\n" .
+                "</FilesMatch>\n" .
+                "Options -ExecCGI -Indexes\n";
+            @file_put_contents($htaccess, $protection);
         }
 
         return true;
